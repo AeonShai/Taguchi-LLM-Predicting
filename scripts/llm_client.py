@@ -154,6 +154,7 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
         except requests.RequestException as e:
             _LOG.exception('Gemini request failed')
             # If we have a response object, include status/text to help debugging
+            
             if hasattr(e, 'response') and e.response is not None:
                 txt = e.response.text
                 raise RuntimeError(f'Gemini request failed: {e} RESPONSE_TEXT: {txt}')
