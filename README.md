@@ -1,6 +1,6 @@
-git add $(Get-Content upload_manifest.txt) 
-git commit -m "Initial upload: scripts, src, report, selected outputs"
-````markdown
+# Enjeksiyon Kalıplama Kalite Tahmini LLM Proje Özeti
+
+Bu doküman, enjeksiyon kalıplama kalite kontrol projesinde gerçekleştirilen LLM entegrasyonu, Taguchi tabanlı prompt optimizasyonu ve elde edilen bulguların teknik özetidir. Aşağıdaki bölümler proje verileri, deney tasarımı, metrikler ve örnek çıktı biçimlerini içerir.
 # Enjeksiyon Kalıplama Kalite Tahmini LLM Proje Özeti
 
 Bu doküman, enjeksiyon kalıplama kalite kontrol projesinde gerçekleştirilen LLM entegrasyonu, Taguchi tabanlı prompt optimizasyonu ve elde edilen bulguların teknik özetidir. Aşağıdaki bölümler proje verileri, deney tasarımı, metrikler ve örnek çıktı biçimlerini içerir.
