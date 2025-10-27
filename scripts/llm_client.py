@@ -69,10 +69,14 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
             import openai
         except Exception:
             raise RuntimeError('openai package not installed; set dry_run=True or install openai')
-        key = os.getenv('OPENAI_API_KEY')
-        if not key:
-            raise RuntimeError('OPENAI_API_KEY not set in environment')
-        openai.api_key = key
+        # Key from env var first, then fallback to .secrets/openai_key.txt or OPENAI_CRED_FILE
+        openai_key = os.getenv('OPENAI_API_KEY')
+        if not openai_key:
+            openai_cred = os.getenv('OPENAI_CRED_FILE', os.path.join(os.getcwd(), '.secrets', 'openai_key.txt'))
+            openai_key = _read_key_from_file(openai_cred)
+        if not openai_key:
+            raise RuntimeError('OPENAI_API_KEY (or OPENAI_CRED_FILE) must be set to use provider=openai')
+        openai.api_key = openai_key
         # Prefer ChatCompletion API when available; fall back to simple completion when not.
         messages = [{'role': 'user', 'content': prompt}]
         try:
@@ -157,10 +161,14 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
 
     # Deepseek HTTP branch (simple generic HTTP POST)
     if provider == 'deepseek':
+        # Key from env var first, then fallback to .secrets/deepseek_key.txt or DEEPSEEK_CRED_FILE
         deepseek_key = os.getenv('DEEPSEEK_API_KEY')
+        if not deepseek_key:
+            deepseek_cred = os.getenv('DEEPSEEK_CRED_FILE', os.path.join(os.getcwd(), '.secrets', 'deepseek_key.txt'))
+            deepseek_key = _read_key_from_file(deepseek_cred)
         deepseek_endpoint = os.getenv('DEEPSEEK_ENDPOINT')
         if not deepseek_key or not deepseek_endpoint:
-            raise RuntimeError('DEEPSEEK_API_KEY and DEEPSEEK_ENDPOINT must be set to use provider=deepseek')
+            raise RuntimeError('DEEPSEEK_API_KEY (or DEEPSEEK_CRED_FILE) and DEEPSEEK_ENDPOINT must be set to use provider=deepseek')
         headers = {
             'Authorization': f'Bearer {deepseek_key}',
             'Content-Type': 'application/json',
