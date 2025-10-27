@@ -62,8 +62,9 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
             }
         }
 
-    # OpenAI minimal branch (keeps previous behaviour)
-    if provider == 'openai':
+    # OpenAI / ChatGPT branch
+    # Accept provider values 'openai' or 'chatgpt' for clarity.
+    if provider in ('openai', 'chatgpt'):
         try:
             import openai
         except Exception:
@@ -72,7 +73,13 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
         if not key:
             raise RuntimeError('OPENAI_API_KEY not set in environment')
         openai.api_key = key
-        resp = openai.ChatCompletion.create(model=model, messages=[{'role': 'user', 'content': prompt}], **kwargs)
+        # Prefer ChatCompletion API when available; fall back to simple completion when not.
+        messages = [{'role': 'user', 'content': prompt}]
+        try:
+            resp = openai.ChatCompletion.create(model=model or 'gpt-4o', messages=messages, **kwargs)
+        except AttributeError:
+            # Older openai packages expose Completion API
+            resp = openai.Completion.create(model=model or 'gpt-4o', prompt=prompt, **kwargs)
         return {'status': 'ok', 'raw': resp}
 
     # Gemini flexible HTTP branch. Accepts an API key via env var or local secrets file and a full endpoint URL.
@@ -148,8 +155,46 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
                 raise RuntimeError(f'Gemini request failed: {e} RESPONSE_TEXT: {txt}')
             raise RuntimeError(f'Gemini request failed: {e}')
 
+    # Deepseek HTTP branch (simple generic HTTP POST)
     if provider == 'deepseek':
-        raise RuntimeError('deepseek provider not implemented yet; set dry_run=True for development')
+        deepseek_key = os.getenv('DEEPSEEK_API_KEY')
+        deepseek_endpoint = os.getenv('DEEPSEEK_ENDPOINT')
+        if not deepseek_key or not deepseek_endpoint:
+            raise RuntimeError('DEEPSEEK_API_KEY and DEEPSEEK_ENDPOINT must be set to use provider=deepseek')
+        headers = {
+            'Authorization': f'Bearer {deepseek_key}',
+            'Content-Type': 'application/json',
+        }
+        payload = {'prompt': prompt}
+        if model:
+            payload['model'] = model
+        payload.update({k: v for k, v in kwargs.items() if k in ('temperature', 'max_output_tokens', 'candidate_count')})
+        try:
+            r = requests.post(deepseek_endpoint, headers=headers, json=payload, timeout=30)
+            r.raise_for_status()
+            try:
+                data = r.json()
+            except ValueError:
+                return {'status': 'ok', 'raw_text': r.text, 'http_status': r.status_code}
+
+            # try extracting JSON from textual content if present
+            parsed = None
+            try:
+                # reuse generic parser to find JSON in text fields
+                parsed = parse_gemini_response(data) or None
+            except Exception:
+                parsed = None
+
+            out = {'status': 'ok', 'raw': data}
+            if parsed is not None:
+                out['parsed'] = parsed
+            return out
+        except requests.RequestException as e:
+            _LOG.exception('Deepseek request failed')
+            if hasattr(e, 'response') and e.response is not None:
+                txt = e.response.text
+                raise RuntimeError(f'Deepseek request failed: {e} RESPONSE_TEXT: {txt}')
+            raise RuntimeError(f'Deepseek request failed: {e}')
 
     raise RuntimeError(f'Provider {provider} not supported')
 
