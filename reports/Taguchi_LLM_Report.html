@@ -1,0 +1,220 @@
+<!doctype html><meta charset="utf-8"><head><style>body{font-family:Arial,Helvetica,sans-serif;margin:30px;}</style></head><body><h1 id="enjeksiyon-kalplama-kalite-tahmini-llm-proje-ozeti">Enjeksiyon Kalıplama Kalite Tahmini LLM Proje Özeti</h1>
+<p>Bu doküman, enjeksiyon kalıplama kalite kontrol projesinde gerçekleştirilen LLM entegrasyonu, Taguchi tabanlı prompt optimizasyonu ve elde edilen bulguların teknik özetidir. Aşağıdaki bölümler proje verileri, deney tasarımı, metrikler ve örnek çıktı biçimlerini içerir.</p>
+<hr />
+<h2 id="1-veri-kumesi-ozellikleri-ve-temizligi">1. Veri Kümesi Özellikleri ve Temizliği</h2>
+<ul>
+<li>
+<p><strong>Ham Veri Kaynağı</strong>: Enjeksiyon kalıplama makinesinin sensörlerinden elde edilen zaman serisi ve proses setpointleri. İlk çalışmalar <code>MouldCode=5001</code> altkümesi (yaklaşık 1.4k satır) üzerinde yürütüldü.</p>
+</li>
+<li>
+<p><strong>Korunan Değişkenler (seçilen örnekler)</strong>: BarrelTemp1, MoldTemp6, DosingTime, CoolingTime, MaxInjectionPressure. Bu değişkenler model tabanlı önem skorları ve literatürsel öneme göre korundu.</p>
+</li>
+<li>
+<p><strong>Temizlenen / Filtrelenen Değişkenler</strong>: Meta veriler ve düşük varyanslı sütunlar (örn. PeriodDuration, MoldClosingTimePeriodValue) analiz dışı bırakıldı. Ayrıca tekrarlı kimlik sütunları ve tamamen tekil sütunlar elendi.</p>
+</li>
+</ul>
+<h3 id="veri-ozeti-ve-parametre-istatistikleri">Veri Özeti ve Parametre İstatistikleri</h3>
+<ul>
+<li><code>outputs/parameter_stats_5001.csv</code> dosyasında her parametre için temel istatistikler kaydedilmiştir. Bu CSV, raporun gösterge tabloları ve seçilmiş özet görselleri için kaynak olarak kullanılmıştır.</li>
+</ul>
+<hr />
+<h2 id="2-taguchi-deney-tasarm-ve-faktorler">2. Taguchi Deney Tasarımı ve Faktörler</h2>
+<ul>
+<li>
+<p><strong>Amac</strong>: Taguchi metoduyla hem proses parametreleri hem de LLM prompt bileşenleri için en iyi seviye kombinasyonlarını belirlemek (maksimum güvenilirlik / S/N).</p>
+</li>
+<li>
+<p><strong>Orthogonal Dizi</strong>: L9 (4 faktör × 3 seviye) kullanıldı.</p>
+</li>
+<li>
+<p><strong>Faktör atamaları (kısa özet)</strong>:</p>
+</li>
+<li>A — Bağlam derinliği (seviye1: son 3; seviye2: son 10; seviye3: son 30 okuma + özet istatistikler)</li>
+<li>B — COT (Zincirleme düşünce): 1=kapalı, 2=kısa, 3=detaylı</li>
+<li>C — Çıktı biçimi: 1=serbest, 2=yarı‑yapılandırılmış, 3=sıkı JSON</li>
+<li>D — Persona/Rol: 1=nötr, 2=process engineer, 3=quality expert</li>
+</ul>
+<hr />
+<h2 id="3-llm-entegrasyonu-ve-prompt-optimizasyonu">3. LLM Entegrasyonu ve Prompt Optimizasyonu</h2>
+<ul>
+<li>
+<p><strong>Kullanılan model</strong>: Yerel entegrasyonla üretim HTTP erişimli büyük bir model sürümü (ör. Gemini benzeri endpoint) üzerinden test edildi.</p>
+</li>
+<li>
+<p><strong>Taguchi‑Prompt Rasyoneli</strong>: Prompt bileşenleri (context, COT, output-strictness, persona) Taguchi ile optimize edildi. Amaç parse edilebilirlik, tahmin doğruluğu ve güven skorunu maksimize etmek.</p>
+</li>
+<li>
+<p><strong>Optimal bileşenlerin kısa özeti</strong>:</p>
+</li>
+<li>Context: recent statistics + last 10–30 readings</li>
+<li>COT: kısa‑orta (2–4 adım) veya detaylı gerektiğinde (6–12 adım)</li>
+<li>Role: <code>Quality Expert</code> persona</li>
+<li>Temperature: düşük (0–0.2) — deterministik cevaplar ve parse güvenliği</li>
+</ul>
+<hr />
+<h2 id="4-deneysel-calsma-ve-cktlar">4. Deneysel Çalışma ve Çıktılar</h2>
+<ul>
+<li>
+<p>Runner, <code>outputs/taguchi_L9_matrix.csv</code> içindeki 9 deneme kombinasyonunu aldı; her deneme için <code>outputs/ham_veri_mould_5001_pruned_with_labels.csv</code> içinden rastgele örnekler seçilerek model çağrıları yapıldı.</p>
+</li>
+<li>
+<p>Oluşan dosyalar:</p>
+</li>
+<li><code>outputs/taguchi_runs/run_T1.ndjson</code> … <code>run_T9.ndjson</code> (her satır: sample_id, prompt_id, raw_response, parsed, parse_ok)</li>
+<li><code>outputs/taguchi_runs/taguchi_results_summary.json</code></li>
+<li><code>outputs/taguchi_runs/taguchi_analysis_summary.json</code></li>
+</ul>
+<h3 id="onemli-gozlem">Önemli gözlem</h3>
+<ul>
+<li>Canlı çağrılar sırasında sağlayıcı taraflı limitler nedeniyle zaman zaman <code>HTTP 429 Too Many Requests</code> hata yanıtları alındı. Bu durum rate limiting/retry stratejileri gerektirir.</li>
+</ul>
+<h3 id="41-canl-llm-calstrma-bulgular-kucuk-olcekli-test">4.1 Canlı LLM Çalıştırma Bulguları (küçük ölçekli test)</h3>
+<ul>
+<li>Kısa canlı testler yapıldı (3 örnek/deneme olacak şekilde); elde edilen bulguların özetleri <code>outputs/taguchi_runs/predicted_defects_summary.json</code> içinde saklanmıştır.</li>
+<li>Özet (örnek çalışma):</li>
+<li>Toplam NDJSON satırı: 27 (9 deneme × 3 örnek)</li>
+<li>Başarıyla ayrıştırılmış (parse_ok): 16</li>
+<li><code>predicted_defects</code> boş gelenler: 10</li>
+<li>
+<p>Sık görülen tahmini kusurlar (örnek sayıları): Dimensional Variation (2), Potential Cooling Issues (1), Inconsistent Dosing (1), warpage/temperature-related (birkaç çeşit, toplam 4+)</p>
+</li>
+<li>
+<p>Yorum: Model her zaman açık bir kusur belirtmiyor — yaklaşık %40–60 oranında <code>predicted_defects</code> alanı dolu geldi. Bu, gönderilen ölçüm anlık görüntülerinin bazı durumlarda açık bir kusur sinyali taşımamasından veya prompt'un modelden konservatif (ihtimal düşük) cevaplar almasına neden olmasından kaynaklanıyor olabilir.</p>
+</li>
+<li>
+<p>Alınan aksiyonlar ve notlar:</p>
+</li>
+<li>Runner, ham yanıtı (<code>raw_response</code>) ve ayrıştırılmış sonucu (<code>parsed</code>) artık sağlam biçimde saklıyor; bu sayede ham model cevabı analiz edilebiliyor.</li>
+<li>Çalışma sırasında <code>requests</code> paketi venv'e yüklendi ve <code>scripts/llm_taguchi_runner.py</code> içinde küçük bir scope hatası düzeltildi (lazy import için <code>global llm_client</code> eklendi).</li>
+<li>Özet dosyası: <code>outputs/taguchi_runs/predicted_defects_summary.json</code> (örnekler ve sayaçlar dahil) oluşturuldu.</li>
+</ul>
+<p>-- Tavsiye: Eğer <code>predicted_defects</code> alanının daha sık dolmasını istiyorsanız, prompt'ta modelden "şüpheli, düşük güvenli olası kusurları bile 1–2 maddede listele" biçiminde açık bir istek eklemeyi öneririm. Ayrıca, daha fazla bağlam (ör. setpoint tarihçesi, eşik değerler) sağlanması modelin karar verme gücünü artırır.</p>
+<hr />
+<h2 id="5-beklenen-llm-ckt-yaps-json">5. Beklenen LLM Çıktı Yapısı (JSON)</h2>
+<p>LLM'nin gerçek zamanlı gözetim için döndürmesi beklenen JSON şeması (özet):</p>
+<ul>
+<li><code>sample_id</code>: string</li>
+<li><code>quality</code>: "High" | "Medium" | "Low"</li>
+<li><code>confidence</code>: 0.0 .. 1.0</li>
+<li><code>predicted_defects</code>: [ { type, confidence, short_explanation } ]</li>
+<li><code>reasoning_steps</code>: [string] (COT etkinse)</li>
+<li><code>recommended_actions</code>: [ { action, parameter, suggested_delta, rationale, expected_risk } ]</li>
+<li><code>provenance</code>: { model, model_version, prompt_id, timestamp }</li>
+</ul>
+<p>Örnek JSON:</p>
+<pre><code class="language-json">{
+  &quot;sample_id&quot;: &quot;row_12345&quot;,
+  &quot;quality&quot;: &quot;Medium&quot;,
+  &quot;confidence&quot;: 0.82,
+  &quot;predicted_defects&quot;: [
+    {&quot;type&quot;:&quot;short_shot&quot;,&quot;confidence&quot;:0.68,&quot;short_explanation&quot;:&quot;yüksek viskozite&quot;}
+  ],
+  &quot;reasoning_steps&quot;: [&quot;Sıcaklık nominalin üzerinde&quot;,&quot;Basınç dalgalı&quot;],
+  &quot;recommended_actions&quot;: [
+    {&quot;action&quot;:&quot;increase_mold_temp&quot;,&quot;parameter&quot;:&quot;mold_temperature&quot;,&quot;suggested_delta&quot;:&quot;+2°C&quot;,&quot;rationale&quot;:&quot;akışı artırır&quot;,&quot;expected_risk&quot;:&quot;low&quot;}
+  ],
+  &quot;provenance&quot;: {&quot;model&quot;:&quot;gemini-2.0-flash&quot;,&quot;prompt_id&quot;:&quot;L9-T3-row_12345&quot;,&quot;timestamp&quot;:&quot;2025-10-27T12:34:56Z&quot;}
+}
+</code></pre>
+<hr />
+<h2 id="6-gorseller-ve-veri-tablolar">6. Görseller ve Veri Tabloları</h2>
+<p>Below are the main visuals produced during the analysis. They are embedded for quick review; full‑resolution images and CSV sources are in the <code>outputs/</code> directory.</p>
+<ul>
+<li>PCA 2D projection (PCA on pruned features):</li>
+</ul>
+<p><img alt="PCA 2D projection" src="../outputs/ham_veri_mould_5001_pca_2d.png" /></p>
+<ul>
+<li>KMeans k=3 scatter (PCA 2D):</li>
+</ul>
+<p><img alt="KMeans k=3 scatter" src="../outputs/ham_veri_mould_5001_pca_k3_scatter.png" /></p>
+<ul>
+<li>Feature importances (RandomForest reproducer):</li>
+</ul>
+<p><img alt="Feature importances" src="../outputs/5001_feature_importances.png" /></p>
+<ul>
+<li>Parametre istatistiklerinin tam hali: <code>outputs/parameter_stats_5001.csv</code> (CSV olarak kaydedildi). Bu dosya, rapor tabloları ve ek özetler için kullanılabilir.</li>
+</ul>
+<hr />
+<h2 id="7-degerlendirme-metrikleri">7. Değerlendirme Metrikleri</h2>
+<ul>
+<li>Satır/örnek düzeyinde hesaplanan başlıca metrikler:</li>
+<li>
+<p>Accuracy, Macro F1, Confidence‑weighted accuracy, Brier score, Parsability rate</p>
+</li>
+<li>
+<p>Taguchi S/N uygulaması:</p>
+</li>
+<li>Ana ölçüt: Confidence‑weighted accuracy (Larger‑is‑Better S/N)</li>
+<li>İkincil: Brier score (Smaller‑is‑Better)</li>
+</ul>
+<hr />
+<h2 id="8-operasyonel-notlar-ve-oneriler">8. Operasyonel Notlar ve Öneriler</h2>
+<ul>
+<li>Exponential backoff + retry stratejisi <code>llm_client</code> katmanına eklenmelidir.</li>
+<li>Hassas veri gönderimi öncesi anonimleştirme veya yerel model alternatifleri değerlendirilmelidir.</li>
+</ul>
+<p>Not: Güvenlik &amp; gizlilik uygulaması olarak, LLM'e gönderilen prompt'larda yalnızca <code>sample_id</code> (takip için), <code>Setpoints</code> ve <code>Measurements</code> gönderilir. <code>Timestamp</code>, <code>MouldCode</code> veya diğer dahili kimlik bilgileri model tarafından kullanılmaz; takip ve audit amaçlı metadatalar NDJSON sonuçlarında <code>internal_metadata</code> altında saklanır, fakat prompt gövdesine asla eklenmez. Bu, modelin zaman damgası üzerinden önyargılı çıkarımlar yapmasını engellemek içindir.</p>
+<hr />
+<h2 id="9-ekler-ve-kaynak-dosyalar">9. Ekler ve Kaynak Dosyalar</h2>
+<ul>
+<li>Kod: <code>scripts/llm_prompts_taguchi.py</code>, <code>scripts/llm_taguchi_runner.py</code>, <code>scripts/llm_taguchi_analyze.py</code></li>
+<li>Çıktılar: <code>outputs/taguchi_runs/*</code>, <code>outputs/ham_veri_mould_5001_pruned_with_labels.csv</code>, <code>outputs/parameter_stats_5001.csv</code></li>
+</ul>
+<hr />
+<h2 id="10-temsili-parsed-llm-ckt-ornekleri">10. Temsili (parsed) LLM Çıktı Örnekleri</h2>
+<p>Aşağıda, <code>outputs/taguchi_runs/run_T1.ndjson</code> içinden alınmış üç temsilî, ayrıştırılmış (parsed) LLM çıktısı örneği verilmiştir. Her biri runner tarafından JSON olarak parse edilmiş ve <code>parse_ok: true</code> olarak işaretlenmiştir. Tam NDJSON dosyaları <code>outputs/taguchi_runs/</code> altında mevcuttur.</p>
+<p>Örnek 1 (güncel):</p>
+<pre><code class="language-json">{
+  &quot;sample_id&quot;: &quot;961150&quot;,
+  &quot;quality&quot;: &quot;Medium&quot;,
+  &quot;confidence&quot;: 0.60,
+  &quot;predicted_defects&quot;: [
+    &quot;Potential Cooling Issues&quot;,
+    &quot;Inconsistent Dosing&quot;
+  ],
+  &quot;reasoning_steps&quot;: [],
+  &quot;recommended_actions&quot;: [
+    &quot;Investigate CoolingTime and optimize cooling parameters.&quot;,
+    &quot;Check dosing unit for wear or malfunction.&quot;,
+    &quot;Check ActualStrokePosition sensor for errors or blockage of material into sample.&quot;,
+    &quot;Verify set InjectionPressure is enough to fill the sample.&quot;
+  ],
+  &quot;provenance&quot;: &quot;Model assessment based on the supplied measurement snapshot and derived indicators.&quot;
+}
+</code></pre>
+<p>Örnek 2 (güncel):</p>
+<pre><code class="language-json">{
+  &quot;sample_id&quot;: &quot;573854&quot;,
+  &quot;quality&quot;: &quot;Medium&quot;,
+  &quot;confidence&quot;: 0.58,
+  &quot;predicted_defects&quot;: [
+    &quot;Potential surface defects due to mold temperature variations&quot;,
+    &quot;Inconsistent cooling time may affect part warpage&quot;
+  ],
+  &quot;reasoning_steps&quot;: [],
+  &quot;recommended_actions&quot;: [
+    &quot;Increase cooling time to ensure adequate part solidification.&quot;,
+    &quot;Evaluate the impact of slight injection pressure adjustments on part quality.&quot;
+  ],
+  &quot;provenance&quot;: &quot;Assessment using measurement snapshot; suggests temperature/cooling-related risk.&quot;
+}
+</code></pre>
+<p>Örnek 3 (güncel):</p>
+<pre><code class="language-json">{
+  &quot;sample_id&quot;: &quot;349027&quot;,
+  &quot;quality&quot;: &quot;Medium&quot;,
+  &quot;confidence&quot;: 0.62,
+  &quot;predicted_defects&quot;: [
+    &quot;Dimensional Variation&quot;
+  ],
+  &quot;reasoning_steps&quot;: [],
+  &quot;recommended_actions&quot;: [
+    &quot;Verify and record the mold temperature setpoint.&quot;,
+    &quot;Verify and record the injection pressure setpoint.&quot;,
+    &quot;Optimize the cooling time to prevent warpage or sticking.&quot;,
+    &quot;Consider performing a Design of Experiments (DOE) to optimize the injection molding process if dimensional variation is observed.&quot;
+  ],
+  &quot;provenance&quot;: &quot;Model indicates dimensional risk based on measurement variances and clustering signals.&quot;
+}
+</code></pre>
+<p>Not: Bu örnekler, canlı testlerimizin ayrıştırılmış (parsed) çıktılarından örneklenmiştir. `predicted_defects` alanı her zaman dolu gelmeyebilir; boş döndüğünde model, ölçüm anlık görüntüsünde açık bir kusur sinyali bulamadığını ifade eder. Ham model cevapları `raw_response` alanında saklanır; `parsed` alanı ise model yanıtından JSON bloklarını çıkartıp şemaya göre normalize edilmiş halidir.</p></body>

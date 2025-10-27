@@ -1,0 +1,13 @@
+veri_analizi/
+__pycache__/
+outputs/
+.vscode/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.egg-info/
+dist/
+build/
+.secrets/
