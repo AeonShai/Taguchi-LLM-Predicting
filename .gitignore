@@ -11,3 +11,6 @@ outputs/
 dist/
 build/
 .secrets/
+!outputs/taguchi_runs/predicted_defects_summary.sanitized.json
+!outputs/taguchi_runs/run_T1.sanitized.ndjson
+!outputs/taguchi_runs/taguchi_results_summary.sanitized.json
