@@ -1,0 +1,91 @@
+{
+  "total_rows": 27,
+  "parsed_ok": 16,
+  "empty_predicted_defects": 10,
+  "defects_counts": {
+    "Potential Cooling Issues": 1,
+    "Inconsistent Dosing": 1,
+    "Potential surface defects due to mold temperature variations": 1,
+    "Inconsistent cooling time may affect part warpage": 1,
+    "Dimensional Variation": 2,
+    "Potential cooling issue": 1,
+    "Potential warpage/shrinkage due to short cooling time": 1
+  },
+  "examples": [
+    {
+      "trial": "T2",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Potential Cooling Issues",
+        "Inconsistent Dosing"
+      ],
+      "recommended_actions": [
+        "Investigate CoolingTime and optimize cooling parameters.",
+        "Check dosing unit for wear or malfunction.",
+        "Check ActualStrokePosition sensor for errors or blockage of material into sample",
+        "Verify set InjectionPressure is enough to fill the sample"
+      ]
+    },
+    {
+      "trial": "T2",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Potential surface defects due to mold temperature variations",
+        "Inconsistent cooling time may affect part warpage"
+      ],
+      "recommended_actions": [
+        "Increase cooling time to ensure adequate part solidification.",
+        "Evaluate the impact of slight injection pressure adjustments on part quality."
+      ]
+    },
+    {
+      "trial": "T3",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Dimensional Variation"
+      ],
+      "recommended_actions": [
+        "Verify and record the mold temperature setpoint.",
+        "Verify and record the injection pressure setpoint.",
+        "Optimize the cooling time to prevent warpage or sticking.",
+        "Consider performing a Design of Experiments (DOE) to optimize the injection molding process if dimensional variation is observed.",
+        "Material and Machine details are needed to provide more accurate recommendations."
+      ]
+    },
+    {
+      "trial": "T4",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Dimensional Variation"
+      ],
+      "recommended_actions": [
+        "Verify mold temperature consistency across different locations.",
+        "Check for potential issues with the injection pressure settings."
+      ]
+    },
+    {
+      "trial": "T5",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Potential cooling issue"
+      ],
+      "recommended_actions": [
+        "Investigate material viscosity and injection speed settings.",
+        "Increase CoolingTime to ensure proper solidification.",
+        "Inspect parts for cooling-related defects like warpage or sink marks."
+      ]
+    },
+    {
+      "trial": "T6",
+      "sample_id": "REDACTED",
+      "predicted_defects": [
+        "Potential warpage/shrinkage due to short cooling time"
+      ],
+      "recommended_actions": [
+        "Obtain and populate missing setpoint data (mold_temp, inj_pressure).",
+        "Optimize cooling time.",
+        "Inspect parts for warpage/shrinkage."
+      ]
+    }
+  ]
+}
