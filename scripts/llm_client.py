@@ -18,6 +18,7 @@ import logging
 from typing import Dict, Any, Optional
 
 import requests
+import re
 
 _LOG = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
             import openai
         except Exception:
             raise RuntimeError('openai package not installed; set dry_run=True or install openai')
+
         # Key from env var first, then fallback to .secrets/openai_key.txt or OPENAI_CRED_FILE
         openai_key = os.getenv('OPENAI_API_KEY')
         if not openai_key:
@@ -76,15 +78,144 @@ def call_llm(prompt: str, provider: str = 'openai', model: str = 'gpt-4o', dry_r
             openai_key = _read_key_from_file(openai_cred)
         if not openai_key:
             raise RuntimeError('OPENAI_API_KEY (or OPENAI_CRED_FILE) must be set to use provider=openai')
-        openai.api_key = openai_key
-        # Prefer ChatCompletion API when available; fall back to simple completion when not.
-        messages = [{'role': 'user', 'content': prompt}]
+
+        # New openai package exposes a client class (OpenAI). Prefer that when present.
+        client = None
         try:
-            resp = openai.ChatCompletion.create(model=model or 'gpt-4o', messages=messages, **kwargs)
-        except AttributeError:
-            # Older openai packages expose Completion API
-            resp = openai.Completion.create(model=model or 'gpt-4o', prompt=prompt, **kwargs)
-        return {'status': 'ok', 'raw': resp}
+            if hasattr(openai, 'OpenAI'):
+                client = openai.OpenAI(api_key=openai_key)
+            else:
+                # older style: set api_key on module
+                openai.api_key = openai_key
+        except Exception:
+            openai.api_key = openai_key
+
+        messages = [{'role': 'user', 'content': prompt}]
+
+        # small retry wrapper
+        def _try_call(fn, *a, **kw):
+            import time
+            attempts = 3
+            delay = 1.0
+            last_exc = None
+            for _ in range(attempts):
+                try:
+                    return fn(*a, **kw)
+                except Exception as e:
+                    last_exc = e
+                    time.sleep(delay)
+                    delay *= 2
+            raise last_exc
+
+        resp = None
+        text = None
+
+        # Try modern client.chat.completions.create (openai>=1.0)
+        if client is not None and hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+            try:
+                resp = _try_call(client.chat.completions.create, model=model or 'gpt-4o', messages=messages, **kwargs)
+            except Exception:
+                resp = None
+
+        # Fallbacks for various openai SDK shapes
+        if resp is None:
+            # try legacy module-level ChatCompletion (older openai versions)
+            try:
+                resp = _try_call(openai.ChatCompletion.create, model=model or 'gpt-4o', messages=messages, **kwargs)
+            except Exception:
+                resp = None
+
+        if resp is None:
+            # try the older Completion API
+            try:
+                resp = _try_call(openai.Completion.create, model=model or 'gpt-4o', prompt=prompt, **kwargs)
+            except Exception:
+                resp = None
+
+        if resp is None:
+            raise RuntimeError('OpenAI call failed with all attempted client APIs')
+
+        # extract text from common response shapes
+        def _extract_text(r):
+            # try dict-like access
+            try:
+                if isinstance(r, dict):
+                    # new client: may include 'choices' or 'output'
+                    if 'choices' in r and r['choices']:
+                        c = r['choices'][0]
+                        if isinstance(c.get('message'), dict):
+                            return c['message'].get('content')
+                        return c.get('text') or c.get('message')
+                    if 'output' in r and r['output']:
+                        # output could be list of generative content
+                        out0 = r['output'][0]
+                        if isinstance(out0, dict) and 'content' in out0:
+                            # content may be list of dicts
+                            cont = out0['content']
+                            if isinstance(cont, list) and cont:
+                                # find text in content
+                                for part in cont:
+                                    if isinstance(part, dict) and 'text' in part:
+                                        return part['text']
+                                # fallback
+                                return str(cont[0])
+                        return None
+                # try attribute access (openai objects)
+                try:
+                    ch = getattr(r, 'choices', None)
+                    if ch:
+                        first = ch[0]
+                        if hasattr(first, 'message') and getattr(first.message, 'content', None):
+                            return first.message.content
+                        if hasattr(first, 'text'):
+                            return first.text
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return None
+
+        text = _extract_text(resp)
+
+        out = {'status': 'ok', 'raw': resp}
+
+        # Try to parse JSON from the model text (fenced JSON or first balanced object)
+        parsed = None
+        if text:
+            m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+            json_str = None
+            if m:
+                json_str = m.group(1)
+            else:
+                start = text.find('{')
+                if start != -1:
+                    depth = 0
+                    end = -1
+                    for i in range(start, len(text)):
+                        if text[i] == '{':
+                            depth += 1
+                        elif text[i] == '}':
+                            depth -= 1
+                            if depth == 0:
+                                end = i
+                                break
+                    if end != -1:
+                        json_str = text[start:end+1]
+            if json_str:
+                try:
+                    parsed = json.loads(json_str)
+                    out['parsed'] = parsed
+                    # save parsed copy for inspection
+                    try:
+                        os.makedirs('outputs/llm_responses', exist_ok=True)
+                        with open('outputs/llm_responses/last_openai_parsed.json', 'w', encoding='utf-8') as f:
+                            json.dump(parsed, f, ensure_ascii=False, indent=2)
+                    except Exception:
+                        _LOG.exception('Failed to write parsed openai output')
+                except Exception:
+                    parsed = None
+
+        return out
 
     # Gemini flexible HTTP branch. Accepts an API key via env var or local secrets file and a full endpoint URL.
     # Google Generative API expects the X-goog-api-key header and a `contents` payload.
