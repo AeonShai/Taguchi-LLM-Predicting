@@ -14,3 +14,6 @@ build/
 !outputs/taguchi_runs/predicted_defects_summary.sanitized.json
 !outputs/taguchi_runs/run_T1.sanitized.ndjson
 !outputs/taguchi_runs/taguchi_results_summary.sanitized.json
+!outputs/ham_veri_mould_5001_pca_2d.png
+!outputs/ham_veri_mould_5001_pca_k3_scatter.png
+!outputs/5001_feature_importances.png
